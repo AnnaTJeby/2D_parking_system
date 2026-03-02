@@ -1,6 +1,9 @@
 import math
 import pygame
 
+def normalize_angle(angle):
+    return (angle + 180) % 360 - 180
+
 # -------- Angle + Distance Visibility --------
 def is_slot_visible(slot, camera, fov=60, max_distance=200):
 
@@ -12,11 +15,13 @@ def is_slot_visible(slot, camera, fov=60, max_distance=200):
 
     angle_to_slot = math.degrees(math.atan2(dy, dx))
     distance = math.sqrt(dx**2 + dy**2)
+    
+    camera_angle = normalize_angle(camera.angle)
+    angle_to_slot = normalize_angle(angle_to_slot)
 
-    left_bound = camera.angle - fov/2
-    right_bound = camera.angle + fov/2
+    angle_difference = normalize_angle(angle_to_slot - camera_angle)
 
-    if left_bound <= angle_to_slot <= right_bound and distance <= max_distance:
+    if abs(angle_difference) <= fov/2 and distance <= max_distance:
         return True
 
     return False
