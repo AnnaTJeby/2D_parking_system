@@ -1,4 +1,5 @@
 import pygame
+from camera import Camera
 
 # ---------- INIT ----------
 pygame.init()
@@ -33,7 +34,7 @@ for i in range(rows):
 
         slot = pygame.Rect(x, y, slot_width, slot_height)
         parking_slots.append(slot)
-
+camera = Camera(100, 300)  # left side of boundary
 # ---------- GAME LOOP ----------
 running = True
 while running:
@@ -41,7 +42,13 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+    keys = pygame.key.get_pressed()
 
+    if keys[pygame.K_LEFT]:
+        camera.rotate("left")
+
+    if keys[pygame.K_RIGHT]:
+        camera.rotate("right")
     # background
     screen.fill(BLACK)
 
@@ -51,7 +58,8 @@ while running:
     # draw slots
     for slot in parking_slots:
         pygame.draw.rect(screen, GREEN, slot, 3)
-
+    camera.draw_camera(screen)
+    camera.draw_fov(screen)
     pygame.display.update()
 
 pygame.quit()
