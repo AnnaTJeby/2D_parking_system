@@ -411,7 +411,7 @@ while running:
             parked_car_slots.append(selected_slot)
             occupied_slots.add(selected_slot)
             active_car = None
-            status_message = f"Car parked in slot {selected_slot + 1}."
+            status_message = f"Car parked in slot B{selected_slot + 1}."
     previous_park_key = park_key
 
     # Draw obstacle
@@ -431,6 +431,11 @@ while running:
             pygame.draw.rect(screen, RED, slot, 3)
         else:
             pygame.draw.rect(screen, GREEN, slot, 3)
+
+        slot_label = f"B{idx + 1}"
+        slot_label_surface = small_font.render(slot_label, True, WHITE)
+        slot_label_rect = slot_label_surface.get_rect(midtop=(slot.centerx, slot.top + sy(6)))
+        screen.blit(slot_label_surface, slot_label_rect)
     if not vehicle_alert_active:
         camera.auto_rotate()
     camera.draw_camera(screen)
