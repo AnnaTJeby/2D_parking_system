@@ -4,7 +4,11 @@ from visibility import is_slot_visible, is_blocked, is_car_detected
 
 pygame.init()
 
-WIDTH, HEIGHT = 1000, 1000
+info = pygame.display.Info()
+WIDTH = int(info.current_w * 0.9)
+HEIGHT = int(info.current_h * 0.9)
+
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("2D Smart Parking Surveillance")
 
