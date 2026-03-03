@@ -37,17 +37,25 @@ start_x = 150
 start_y = 100
 rows = 2
 cols = 4
+middle_gap = 150
 
 for i in range(rows):
     for j in range(cols):
         x = start_x + j * (slot_width + gap_x)
+
+        # Add extra gap after 2nd column
+        if j >= 2:
+            x += middle_gap
+
         y = start_y + i * (slot_height + gap_y)
         slot = pygame.Rect(x, y, slot_width, slot_height)
         parking_slots.append(slot)
 
-slots_center_x = int(sum(slot.centerx for slot in parking_slots) / len(parking_slots))
-slots_center_y = int(sum(slot.centery for slot in parking_slots) / len(parking_slots))
+left_column_right = parking_slots[1].right
+right_column_left = parking_slots[2].left
 
+slots_center_x = (left_column_right + right_column_left) // 2
+slots_center_y = int(sum(slot.centery for slot in parking_slots) / len(parking_slots))
 # ---------- OBSTACLE / RIGHT WALL ----------
 obstacle = pygame.Rect(
     PARKING_LANE_BOUNDS.right - 10,
@@ -68,7 +76,9 @@ status_message = "Click Add Car to enter a new vehicle."
 previous_park_key = False
 popup_message = ""
 popup_until = 0
-
+vehicle_alert_active = False
+alert_played = False
+ok_button = pygame.Rect(WIDTH//2 - 50, HEIGHT//2 + 20, 100, 40)
 font = pygame.font.Font(None, 30)
 small_font = pygame.font.Font(None, 24)
 
@@ -181,7 +191,8 @@ while running:
             pygame.draw.rect(screen, RED, slot, 3)
         else:
             pygame.draw.rect(screen, GREEN, slot, 3)
-
+    if not vehicle_alert_active:
+        camera.auto_rotate()
     camera.draw_camera(screen)
     camera.draw_fov(screen, fov_angle=CAMERA_FOV, distance=CAMERA_RANGE)
 
