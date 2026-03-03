@@ -112,6 +112,7 @@ popup_color = (170, 20, 20)
 assigned_slot_idx = None
 vehicle_alert_active = False
 booked_alert_slots = set()
+last_booked_slot_idx = None
 booking_popup_until = 0
 BOOKING_POPUP_MS = 900
 font = pygame.font.SysFont("Segoe UI Symbol", ss(34))
@@ -477,9 +478,10 @@ while running:
             detected_count += 1
             if slot_idx not in booked_alert_slots:
                 booked_alert_slots.add(slot_idx)
+                last_booked_slot_idx = slot_idx
                 booking_popup_until = now + BOOKING_POPUP_MS
                 vehicle_alert_active = True
-                status_message = f"Camera confirmed slot {slot_idx + 1} booking."
+                status_message = f"Camera confirmed slot B{slot_idx + 1} booking."
         draw_animated_car(screen, parked_rect, parked["angle"], detected=car_seen, wheel_phase=0)
 
     if active_car is not None:
@@ -560,7 +562,12 @@ while running:
         pygame.draw.rect(screen, (20, 110, 40), booking_rect, border_radius=10)
         pygame.draw.rect(screen, WHITE, booking_rect, 2, border_radius=10)
 
-        booking_title = font.render("One slot booked", True, WHITE)
+        booking_text = (
+            f"B{last_booked_slot_idx + 1} slot is booked"
+            if last_booked_slot_idx is not None
+            else "One slot booked"
+        )
+        booking_title = font.render(booking_text, True, WHITE)
         booking_title_rect = booking_title.get_rect(
             center=(booking_rect.centerx, booking_rect.centery - sy(10))
         )
