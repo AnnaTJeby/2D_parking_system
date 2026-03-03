@@ -1,4 +1,5 @@
 import pygame
+import math
 from camera import Camera
 from visibility import is_slot_visible, is_blocked, is_car_detected
 
@@ -48,7 +49,7 @@ PARKING_LANE_BOUNDS = pygame.Rect(
 CAMERA_FOV = 90
 CAMERA_RANGE = ss(320)
 CAR_SPEED = max(2, ss(4))
-CAR_SIZE = (ss(40), ss(60))
+CAR_SIZE = (ss(72), ss(28))
 ENTRY_POINT = (PARKING_LANE_BOUNDS.left + ss(10), PARKING_LANE_BOUNDS.top + ss(10))
 ADD_CAR_BUTTON = pygame.Rect(WIDTH - sx(220), sy(10), sx(200), sy(42))
 
@@ -97,6 +98,8 @@ camera = Camera(slots_center_x, slots_center_y)
 
 # ---------- CAR STATE ----------
 active_car = None
+active_car_angle = 0.0
+wheel_phase = 0.0
 parked_cars = []
 parked_car_slots = []
 occupied_slots = set()
@@ -227,6 +230,61 @@ def draw_control_button(rect, direction, enabled, active):
     pygame.draw.polygon(screen, arrow_color, points)
     
 
+def draw_animated_car(screen, rect, angle, detected=False, wheel_phase=0.0):
+    pad = 18
+    canvas_w = rect.width + pad * 2
+    canvas_h = rect.height + pad * 2
+    car_surface = pygame.Surface((canvas_w, canvas_h), pygame.SRCALPHA)
+
+    body_color = YELLOW if detected else BLUE
+    body_rect = pygame.Rect(pad, pad, rect.width, rect.height)
+    cabin_rect = pygame.Rect(
+        body_rect.x + int(body_rect.width * 0.28),
+        body_rect.y - int(body_rect.height * 0.28),
+        int(body_rect.width * 0.44),
+        int(body_rect.height * 0.55),
+    )
+
+    # Side-view body and cabin
+    pygame.draw.rect(car_surface, body_color, body_rect, border_radius=8)
+    pygame.draw.rect(car_surface, (35, 70, 120), cabin_rect, border_radius=6)
+
+    # Side windows
+    glass_color = (170, 215, 240)
+    window_w = int(cabin_rect.width * 0.42)
+    left_window = pygame.Rect(cabin_rect.x + 3, cabin_rect.y + 3, window_w, cabin_rect.height - 6)
+    right_window = pygame.Rect(cabin_rect.right - window_w - 3, cabin_rect.y + 3, window_w, cabin_rect.height - 6)
+    pygame.draw.rect(car_surface, glass_color, left_window, border_radius=3)
+    pygame.draw.rect(car_surface, glass_color, right_window, border_radius=3)
+
+    # Front/rear lights in side profile
+    pygame.draw.rect(car_surface, (255, 240, 120), (body_rect.right - 3, body_rect.y + 6, 3, 7), border_radius=2)
+    pygame.draw.rect(car_surface, (255, 100, 100), (body_rect.x, body_rect.y + 6, 3, 7), border_radius=2)
+
+    wheel_size = (14, 9)
+    wheel_positions = [
+        (body_rect.x + 8, body_rect.bottom - 4),
+        (body_rect.right - 22, body_rect.bottom - 4),
+    ]
+    spoke_rad = math.radians(wheel_phase)
+    spoke_dx = int(4 * math.cos(spoke_rad))
+    spoke_dy = int(2 * math.sin(spoke_rad))
+    for wx, wy in wheel_positions:
+        wrect = pygame.Rect(wx, wy, wheel_size[0], wheel_size[1])
+        pygame.draw.ellipse(car_surface, (20, 20, 20), wrect)
+        center = wrect.center
+        pygame.draw.line(
+            car_surface,
+            (180, 180, 180),
+            (center[0] - spoke_dx, center[1] - spoke_dy),
+            (center[0] + spoke_dx, center[1] + spoke_dy),
+            2,
+        )
+
+    rotated = pygame.transform.rotate(car_surface, -angle)
+    rotated_rect = rotated.get_rect(center=rect.center)
+    screen.blit(rotated, rotated_rect.topleft)
+
 running = True
 clock = pygame.time.Clock()
 
@@ -250,6 +308,7 @@ while running:
                         status_message = "Entry is blocked. Move parked cars/camera and try again."
                     else:
                         active_car = new_car
+                        active_car_angle = 0.0
                         status_message = "New car added. Use arrows or on-screen controls, P to park."
                 else:
                     status_message = "Park the current car first before adding a new one."
@@ -307,6 +366,10 @@ while running:
         if keys[pygame.K_DOWN] or mouse_down:
             dy += CAR_SPEED
 
+        if dx != 0 or dy != 0:
+            active_car_angle = math.degrees(math.atan2(dy, dx))
+            wheel_phase = (wheel_phase + (abs(dx) + abs(dy)) * 3) % 360
+
         previous_pos = active_car.copy()
         active_car.x += dx
         active_car.y += dy
@@ -344,7 +407,7 @@ while running:
         else:
             parked_car = active_car.copy()
             parked_car.center = parking_slots[selected_slot].center
-            parked_cars.append(parked_car)
+            parked_cars.append({"rect": parked_car, "angle": active_car_angle})
             parked_car_slots.append(selected_slot)
             occupied_slots.add(selected_slot)
             active_car = None
@@ -376,8 +439,9 @@ while running:
     all_cars = parked_cars + ([active_car] if active_car is not None else [])
     detected_count = 0
     for parked, slot_idx in zip(parked_cars, parked_car_slots):
+        parked_rect = parked["rect"]
         car_seen = is_car_detected(
-            parked,
+            parked_rect,
             camera,
             obstacle,
             PARKING_LANE_BOUNDS,
@@ -391,7 +455,7 @@ while running:
                 booking_popup_until = now + BOOKING_POPUP_MS
                 vehicle_alert_active = True
                 status_message = f"Camera confirmed slot {slot_idx + 1} booking."
-        pygame.draw.rect(screen, YELLOW if car_seen else BLUE, parked)
+        draw_animated_car(screen, parked_rect, parked["angle"], detected=car_seen, wheel_phase=0)
 
     if active_car is not None:
         active_seen = is_car_detected(
@@ -404,7 +468,13 @@ while running:
         )
         if active_seen:
             detected_count += 1
-        pygame.draw.rect(screen, YELLOW if active_seen else BLUE, active_car)
+        draw_animated_car(
+            screen,
+            active_car,
+            active_car_angle,
+            detected=active_seen,
+            wheel_phase=wheel_phase,
+        )
 
     pygame.draw.rect(screen, DARK_GRAY, ADD_CAR_BUTTON, border_radius=6)
     pygame.draw.rect(screen, WHITE, ADD_CAR_BUTTON, 2, border_radius=6)
