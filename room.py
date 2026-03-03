@@ -94,6 +94,7 @@ camera = Camera(slots_center_x, slots_center_y)
 # ---------- CAR STATE ----------
 active_car = None
 parked_cars = []
+parked_car_slots = []
 occupied_slots = set()
 scanned_slots = set()
 status_message = "Click Add Car to enter a new vehicle."
@@ -101,9 +102,9 @@ previous_park_key = False
 popup_message = ""
 popup_until = 0
 vehicle_alert_active = False
-alert_played = False
-ok_button = pygame.Rect(WIDTH//2 - 50, HEIGHT//2 + 20, 100, 40)
-ok_button = pygame.Rect(WIDTH // 2 - sx(70), HEIGHT // 2 + sy(20), sx(140), sy(50))
+booked_alert_slots = set()
+booking_popup_until = 0
+BOOKING_POPUP_MS = 900
 font = pygame.font.Font(None, ss(34))
 small_font = pygame.font.Font(None, ss(26))
 HUD_LEFT = sx(20)
@@ -115,12 +116,14 @@ clock = pygame.time.Clock()
 while running:
 
     clock.tick(60)
+    now = pygame.time.get_ticks()
+    vehicle_alert_active = now < booking_popup_until
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if ADD_CAR_BUTTON.collidepoint(event.pos):
+            if not vehicle_alert_active and ADD_CAR_BUTTON.collidepoint(event.pos):
                 if active_car is None:
                     new_car = pygame.Rect(ENTRY_POINT[0], ENTRY_POINT[1], CAR_SIZE[0], CAR_SIZE[1])
                     entry_blocked = new_car.colliderect(obstacle) or any(
@@ -135,9 +138,9 @@ while running:
                     status_message = "Park the current car first before adding a new one."
 
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_a]:
+    if not vehicle_alert_active and keys[pygame.K_a]:
         camera.rotate("left")
-    if keys[pygame.K_d]:
+    if not vehicle_alert_active and keys[pygame.K_d]:
         camera.rotate("right")
 
     screen.fill(BLACK)
@@ -146,7 +149,7 @@ while running:
     pygame.draw.rect(screen, WHITE, PARKING_LANE_BOUNDS, 4)
 
     # Drive active car with arrow keys
-    if active_car is not None:
+    if active_car is not None and not vehicle_alert_active:
         dx = 0
         dy = 0
         if keys[pygame.K_LEFT]:
@@ -179,7 +182,7 @@ while running:
             active_car = previous_pos
 
     park_key = keys[pygame.K_p]
-    if active_car is not None and park_key and not previous_park_key:
+    if active_car is not None and not vehicle_alert_active and park_key and not previous_park_key:
         selected_slot = None
         for idx, slot in enumerate(parking_slots):
             if slot.collidepoint(active_car.center):
@@ -196,6 +199,7 @@ while running:
             parked_car = active_car.copy()
             parked_car.center = parking_slots[selected_slot].center
             parked_cars.append(parked_car)
+            parked_car_slots.append(selected_slot)
             occupied_slots.add(selected_slot)
             active_car = None
             status_message = f"Car parked in slot {selected_slot + 1}."
@@ -225,7 +229,7 @@ while running:
 
     all_cars = parked_cars + ([active_car] if active_car is not None else [])
     detected_count = 0
-    for parked in parked_cars:
+    for parked, slot_idx in zip(parked_cars, parked_car_slots):
         car_seen = is_car_detected(
             parked,
             camera,
@@ -236,6 +240,11 @@ while running:
         )
         if car_seen:
             detected_count += 1
+            if slot_idx not in booked_alert_slots:
+                booked_alert_slots.add(slot_idx)
+                booking_popup_until = now + BOOKING_POPUP_MS
+                vehicle_alert_active = True
+                status_message = f"Camera confirmed slot {slot_idx + 1} booking."
         pygame.draw.rect(screen, YELLOW if car_seen else BLUE, parked)
 
     if active_car is not None:
@@ -277,7 +286,7 @@ while running:
     status_y = HEIGHT - status_surface.get_height() - sy(10)
     screen.blit(status_surface, (HUD_LEFT, status_y))
 
-    if pygame.time.get_ticks() < popup_until:
+    if now < popup_until:
         popup_rect = pygame.Rect(
             WIDTH // 2 - sx(240),
             PARKING_LANE_BOUNDS.top + sy(20),
@@ -289,6 +298,32 @@ while running:
         popup_label = font.render(popup_message, True, WHITE)
         popup_label_rect = popup_label.get_rect(center=popup_rect.center)
         screen.blit(popup_label, popup_label_rect)
+
+    if vehicle_alert_active:
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 170))
+        screen.blit(overlay, (0, 0))
+
+        booking_rect = pygame.Rect(
+            WIDTH // 2 - sx(240),
+            HEIGHT // 2 - sy(80),
+            sx(480),
+            sy(160),
+        )
+        pygame.draw.rect(screen, (20, 110, 40), booking_rect, border_radius=10)
+        pygame.draw.rect(screen, WHITE, booking_rect, 2, border_radius=10)
+
+        booking_title = font.render("One slot booked", True, WHITE)
+        booking_title_rect = booking_title.get_rect(
+            center=(booking_rect.centerx, booking_rect.centery - sy(10))
+        )
+        screen.blit(booking_title, booking_title_rect)
+
+        booking_sub = small_font.render("Camera detected parked vehicle", True, WHITE)
+        booking_sub_rect = booking_sub.get_rect(
+            center=(booking_rect.centerx, booking_rect.centery + sy(25))
+        )
+        screen.blit(booking_sub, booking_sub_rect)
 
     pygame.display.update()
 
