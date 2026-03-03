@@ -108,6 +108,8 @@ status_message = "Click Add Car to enter a new vehicle."
 previous_park_key = False
 popup_message = ""
 popup_until = 0
+popup_color = (170, 20, 20)
+assigned_slot_idx = None
 vehicle_alert_active = False
 booked_alert_slots = set()
 booking_popup_until = 0
@@ -300,6 +302,14 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if not vehicle_alert_active and ADD_CAR_BUTTON.collidepoint(event.pos):
                 if active_car is None:
+                    free_slots = [idx for idx in range(len(parking_slots)) if idx not in occupied_slots]
+                    if not free_slots:
+                        status_message = "No free slots available right now."
+                        popup_message = "Parking Full"
+                        popup_color = (170, 20, 20)
+                        popup_until = now + 1800
+                        continue
+
                     new_car = pygame.Rect(ENTRY_POINT[0], ENTRY_POINT[1], CAR_SIZE[0], CAR_SIZE[1])
                     entry_blocked = new_car.colliderect(obstacle) or any(
                         new_car.colliderect(parking_slots[idx]) for idx in occupied_slots
@@ -307,9 +317,13 @@ while running:
                     if entry_blocked:
                         status_message = "Entry is blocked. Move parked cars/camera and try again."
                     else:
+                        assigned_slot_idx = free_slots[0]
                         active_car = new_car
                         active_car_angle = 0.0
-                        status_message = "New car added. Use arrows or on-screen controls, P to park."
+                        status_message = f"Camera instruction: Goto slot B{assigned_slot_idx + 1}."
+                        popup_message = f"Goto slot B{assigned_slot_idx + 1}"
+                        popup_color = (20, 90, 170)
+                        popup_until = now + 1600
                 else:
                     status_message = "Park the current car first before adding a new one."
 
@@ -387,6 +401,7 @@ while running:
         if active_car.colliderect(obstacle) or blocked_by_taken_slot:
             if blocked_by_taken_slot:
                 popup_message = "Warning: Slot already occupied."
+                popup_color = (170, 20, 20)
                 popup_until = pygame.time.get_ticks() + 1800
             active_car = previous_pos
 
@@ -403,6 +418,7 @@ while running:
         elif selected_slot in occupied_slots:
             status_message = "Slot is already occupied. Choose a free slot."
             popup_message = "Warning: Slot already occupied."
+            popup_color = (170, 20, 20)
             popup_until = pygame.time.get_ticks() + 1800
         else:
             parked_car = active_car.copy()
@@ -411,7 +427,11 @@ while running:
             parked_car_slots.append(selected_slot)
             occupied_slots.add(selected_slot)
             active_car = None
-            status_message = f"Car parked in slot B{selected_slot + 1}."
+            if assigned_slot_idx is not None and selected_slot == assigned_slot_idx:
+                status_message = f"Car parked in assigned slot B{selected_slot + 1}."
+            else:
+                status_message = f"Car parked in slot B{selected_slot + 1}."
+            assigned_slot_idx = None
     previous_park_key = park_key
 
     # Draw obstacle
@@ -520,7 +540,7 @@ while running:
             sx(480),
             sy(70),
         )
-        pygame.draw.rect(screen, (170, 20, 20), popup_rect, border_radius=8)
+        pygame.draw.rect(screen, popup_color, popup_rect, border_radius=8)
         pygame.draw.rect(screen, WHITE, popup_rect, 2, border_radius=8)
         popup_label = font.render(popup_message, True, WHITE)
         popup_label_rect = popup_label.get_rect(center=popup_rect.center)
