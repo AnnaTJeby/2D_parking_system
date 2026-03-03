@@ -4,20 +4,20 @@ from visibility import is_slot_visible, is_blocked, is_car_detected
 
 pygame.init()
 
-WIDTH, HEIGHT = 1000, 900
+WIDTH, HEIGHT = 1000, 1000
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("2D Smart Parking Surveillance")
 
-BASE_WIDTH, BASE_HEIGHT = 900, 600
+BASE_WIDTH, BASE_HEIGHT = 900, 900
 scale_x = WIDTH / BASE_WIDTH
 scale_y = HEIGHT / BASE_HEIGHT
 scale = min(scale_x, scale_y)
 
 def sx(value):
-    return max(1, int(value * scale_x))
+    return max(1, int(value * scale))
 
 def sy(value):
-    return max(1, int(value * scale_y))
+    return max(1, int(value * scale))
 
 def ss(value):
     return max(1, int(value * scale))
@@ -105,10 +105,123 @@ vehicle_alert_active = False
 booked_alert_slots = set()
 booking_popup_until = 0
 BOOKING_POPUP_MS = 900
-font = pygame.font.Font(None, ss(34))
-small_font = pygame.font.Font(None, ss(26))
+font = pygame.font.SysFont("Segoe UI Symbol", ss(34))
+small_font = pygame.font.SysFont("Segoe UI Symbol", ss(26))
 HUD_LEFT = sx(20)
 HUD_TOP = sy(8)
+
+# ---------- ON-SCREEN DRIVE CONTROLS ----------
+CTRL_W = sx(60)      
+CTRL_H = sy(50)      
+CTRL_GAP = sx(12)    
+# ---------- CONTROL PANEL POSITION ----------
+slots_bottom = max(slot.bottom for slot in parking_slots)
+
+CONTROL_BOX_WIDTH = sx(320)
+CONTROL_BOX_HEIGHT = sy(240)
+
+CONTROL_BOX_X = PARKING_LANE_BOUNDS.centerx - CONTROL_BOX_WIDTH // 2
+CONTROL_BOX_Y = slots_bottom + sy(100)
+control_box = pygame.Rect(
+    CONTROL_BOX_X,
+    CONTROL_BOX_Y,
+    CONTROL_BOX_WIDTH,
+    CONTROL_BOX_HEIGHT
+)
+CTRL_CENTER_X = PARKING_LANE_BOUNDS.centerx
+cluster_height = CTRL_H * 2 + CTRL_GAP
+CTRL_TOP = control_box.centery - cluster_height // 2
+bottom_row_width = CTRL_W * 3 + CTRL_GAP * 2
+bottom_start_x = CTRL_CENTER_X - bottom_row_width // 2
+bottom_y = CTRL_TOP + CTRL_H + CTRL_GAP
+
+LEFT_BUTTON = pygame.Rect(
+    bottom_start_x,
+    bottom_y,
+    CTRL_W,
+    CTRL_H,
+)
+
+DOWN_BUTTON = pygame.Rect(
+    bottom_start_x + CTRL_W + CTRL_GAP,
+    bottom_y,
+    CTRL_W,
+    CTRL_H,
+)
+
+RIGHT_BUTTON = pygame.Rect(
+    bottom_start_x + (CTRL_W + CTRL_GAP) * 2,
+    bottom_y,
+    CTRL_W,
+    CTRL_H,
+)
+
+
+UP_BUTTON = pygame.Rect(
+    CTRL_CENTER_X - CTRL_W // 2,
+    CTRL_TOP,
+    CTRL_W,
+    CTRL_H,
+)
+
+
+pygame.draw.rect(screen, (25, 25, 25), control_box, border_radius=10)
+pygame.draw.rect(screen, WHITE, control_box, 2, border_radius=10)
+
+title_surface = small_font.render("Vehicle Controls", True, WHITE)
+title_rect = title_surface.get_rect(center=(control_box.centerx, control_box.y + sy(15)))
+screen.blit(title_surface, title_rect)
+def draw_control_button(rect, direction, enabled, active):
+    if not enabled:
+        fill = (60, 60, 60)
+        border = (120, 120, 120)
+        arrow_color = (150, 150, 150)
+    elif active:
+        fill = (35, 120, 210)
+        border = WHITE
+        arrow_color = WHITE
+    else:
+        fill = DARK_GRAY
+        border = WHITE
+        arrow_color = WHITE
+
+    # Draw button
+    pygame.draw.rect(screen, fill, rect, border_radius=10)
+    pygame.draw.rect(screen, border, rect, 2, border_radius=10)
+
+    cx, cy = rect.center
+    size = rect.width // 3
+
+    if direction == "UP":
+        points = [
+            (cx, cy - size),
+            (cx - size, cy + size),
+            (cx + size, cy + size),
+        ]
+
+    elif direction == "DOWN":
+        points = [
+            (cx - size, cy - size),
+            (cx + size, cy - size),
+            (cx, cy + size),
+        ]
+
+    elif direction == "LEFT":
+        points = [
+            (cx - size, cy),
+            (cx + size, cy - size),
+            (cx + size, cy + size),
+        ]
+
+    elif direction == "RIGHT":
+        points = [
+            (cx - size, cy - size),
+            (cx - size, cy + size),
+            (cx + size, cy),
+        ]
+
+    pygame.draw.polygon(screen, arrow_color, points)
+    
 
 running = True
 clock = pygame.time.Clock()
@@ -133,7 +246,7 @@ while running:
                         status_message = "Entry is blocked. Move parked cars/camera and try again."
                     else:
                         active_car = new_car
-                        status_message = "New car added. Use arrow keys to drive, P to park."
+                        status_message = "New car added. Use arrows or on-screen controls, P to park."
                 else:
                     status_message = "Park the current car first before adding a new one."
 
@@ -143,8 +256,37 @@ while running:
     if not vehicle_alert_active and keys[pygame.K_d]:
         camera.rotate("right")
 
-    screen.fill(BLACK)
+    mouse_left_down = pygame.mouse.get_pressed()[0]
+    mouse_pos = pygame.mouse.get_pos()
+    mouse_up = (
+        not vehicle_alert_active
+        and mouse_left_down
+        and UP_BUTTON.collidepoint(mouse_pos)
+    )
+    mouse_down = (
+        not vehicle_alert_active
+        and mouse_left_down
+        and DOWN_BUTTON.collidepoint(mouse_pos)
+    )
+    mouse_left = (
+        not vehicle_alert_active
+        and mouse_left_down
+        and LEFT_BUTTON.collidepoint(mouse_pos)
+    )
+    mouse_right = (
+        not vehicle_alert_active
+        and mouse_left_down
+        and RIGHT_BUTTON.collidepoint(mouse_pos)
+    )
 
+    screen.fill(BLACK)
+    # Draw control panel box
+    pygame.draw.rect(screen, (25, 25, 25), control_box, border_radius=10)
+    pygame.draw.rect(screen, WHITE, control_box, 2, border_radius=10)
+
+    title_surface = small_font.render("Vehicle Controls", True, WHITE)
+    title_rect = title_surface.get_rect(center=(control_box.centerx, control_box.y + sy(15)))
+    screen.blit(title_surface, title_rect)
     # Boundary
     pygame.draw.rect(screen, WHITE, PARKING_LANE_BOUNDS, 4)
 
@@ -152,13 +294,13 @@ while running:
     if active_car is not None and not vehicle_alert_active:
         dx = 0
         dy = 0
-        if keys[pygame.K_LEFT]:
+        if keys[pygame.K_LEFT] or mouse_left:
             dx -= CAR_SPEED
-        if keys[pygame.K_RIGHT]:
+        if keys[pygame.K_RIGHT] or mouse_right:
             dx += CAR_SPEED
-        if keys[pygame.K_UP]:
+        if keys[pygame.K_UP] or mouse_up:
             dy -= CAR_SPEED
-        if keys[pygame.K_DOWN]:
+        if keys[pygame.K_DOWN] or mouse_down:
             dy += CAR_SPEED
 
         previous_pos = active_car.copy()
@@ -265,6 +407,12 @@ while running:
     add_label = small_font.render("Add Car", True, WHITE)
     add_label_rect = add_label.get_rect(center=ADD_CAR_BUTTON.center)
     screen.blit(add_label, add_label_rect)
+
+    controls_enabled = active_car is not None and not vehicle_alert_active
+    draw_control_button(UP_BUTTON, "UP", controls_enabled, mouse_up)
+    draw_control_button(LEFT_BUTTON, "LEFT", controls_enabled, mouse_left)
+    draw_control_button(DOWN_BUTTON, "DOWN", controls_enabled, mouse_down)
+    draw_control_button(RIGHT_BUTTON, "RIGHT", controls_enabled, mouse_right)
 
     total_slots = len(parking_slots)
     if len(scanned_slots) == total_slots:
