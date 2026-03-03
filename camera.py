@@ -10,6 +10,12 @@ class Camera:
     def draw_camera(self, screen):
         pygame.draw.circle(screen, (0, 0, 255), (self.x, self.y), 10)
 
+    def rotate(self, direction):
+        if direction == "left":
+            self.angle -= 2
+        elif direction == "right":
+            self.angle += 2
+
     def auto_rotate(self):
         self.angle += 1   # speed of rotation
         if self.angle >= 360:
@@ -25,7 +31,7 @@ class Camera:
         right_x = self.x + distance * math.cos(end_angle)
         right_y = self.y + distance * math.sin(end_angle)
 
-        surface = pygame.Surface((900, 600), pygame.SRCALPHA)
+        surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
         pygame.draw.polygon(surface, (0, 255, 0, 80), [
             (self.x, self.y),
             (left_x, left_y),

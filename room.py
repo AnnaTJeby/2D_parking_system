@@ -4,9 +4,23 @@ from visibility import is_slot_visible, is_blocked, is_car_detected
 
 pygame.init()
 
-WIDTH, HEIGHT = 900, 600
+WIDTH, HEIGHT = 1000, 900
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("2D Smart Parking Surveillance")
+
+BASE_WIDTH, BASE_HEIGHT = 900, 600
+scale_x = WIDTH / BASE_WIDTH
+scale_y = HEIGHT / BASE_HEIGHT
+scale = min(scale_x, scale_y)
+
+def sx(value):
+    return max(1, int(value * scale_x))
+
+def sy(value):
+    return max(1, int(value * scale_y))
+
+def ss(value):
+    return max(1, int(value * scale))
 
 WHITE = (255,255,255)
 GREEN = (0,200,0)
@@ -18,26 +32,36 @@ BLUE = (0, 140, 255)
 ORANGE = (255, 140, 0)
 DARK_GRAY = (40, 40, 40)
 
-PARKING_LANE_BOUNDS = pygame.Rect(50, 50, 800, 500)
+lane_margin_x = sx(50)
+lane_margin_top = sy(80)
+lane_margin_bottom = sy(45)
+PARKING_LANE_BOUNDS = pygame.Rect(
+    lane_margin_x,
+    lane_margin_top,
+    WIDTH - (2 * lane_margin_x),
+    HEIGHT - lane_margin_top - lane_margin_bottom,
+)
 CAMERA_FOV = 90
-CAMERA_RANGE = 320
-CAR_SPEED = 4
-CAR_SIZE = (40, 60)
-ENTRY_POINT = (PARKING_LANE_BOUNDS.left + 10, PARKING_LANE_BOUNDS.top + 10)
-ADD_CAR_BUTTON = pygame.Rect(WIDTH - 190, 10, 170, 34)
+CAMERA_RANGE = ss(320)
+CAR_SPEED = max(2, ss(4))
+CAR_SIZE = (ss(40), ss(60))
+ENTRY_POINT = (PARKING_LANE_BOUNDS.left + ss(10), PARKING_LANE_BOUNDS.top + ss(10))
+ADD_CAR_BUTTON = pygame.Rect(WIDTH - sx(220), sy(10), sx(200), sy(42))
 
 # ---------- PARKING SLOTS ----------
 parking_slots = []
 
-slot_width = 80
-slot_height = 150
-gap_x = 40
-gap_y = 60
-start_x = 150
-start_y = 100
+slot_width = ss(80)
+slot_height = ss(150)
+gap_x = ss(40)
+gap_y = ss(60)
 rows = 2
 cols = 4
-middle_gap = 150
+middle_gap = ss(150)
+
+layout_width = cols * slot_width + (cols - 1) * gap_x + middle_gap
+start_x = PARKING_LANE_BOUNDS.centerx - layout_width // 2
+start_y = PARKING_LANE_BOUNDS.top + sy(55)
 
 for i in range(rows):
     for j in range(cols):
@@ -58,9 +82,9 @@ slots_center_x = (left_column_right + right_column_left) // 2
 slots_center_y = int(sum(slot.centery for slot in parking_slots) / len(parking_slots))
 # ---------- OBSTACLE / RIGHT WALL ----------
 obstacle = pygame.Rect(
-    PARKING_LANE_BOUNDS.right - 10,
+    PARKING_LANE_BOUNDS.right - ss(10),
     PARKING_LANE_BOUNDS.top,
-    10,
+    ss(10),
     PARKING_LANE_BOUNDS.height,
 )
 
@@ -79,8 +103,11 @@ popup_until = 0
 vehicle_alert_active = False
 alert_played = False
 ok_button = pygame.Rect(WIDTH//2 - 50, HEIGHT//2 + 20, 100, 40)
-font = pygame.font.Font(None, 30)
-small_font = pygame.font.Font(None, 24)
+ok_button = pygame.Rect(WIDTH // 2 - sx(70), HEIGHT // 2 + sy(20), sx(140), sy(50))
+font = pygame.font.Font(None, ss(34))
+small_font = pygame.font.Font(None, ss(26))
+HUD_LEFT = sx(20)
+HUD_TOP = sy(8)
 
 running = True
 clock = pygame.time.Clock()
@@ -227,7 +254,8 @@ while running:
     pygame.draw.rect(screen, DARK_GRAY, ADD_CAR_BUTTON, border_radius=6)
     pygame.draw.rect(screen, WHITE, ADD_CAR_BUTTON, 2, border_radius=6)
     add_label = small_font.render("Add Car", True, WHITE)
-    screen.blit(add_label, (ADD_CAR_BUTTON.x + 50, ADD_CAR_BUTTON.y + 9))
+    add_label_rect = add_label.get_rect(center=ADD_CAR_BUTTON.center)
+    screen.blit(add_label, add_label_rect)
 
     total_slots = len(parking_slots)
     if len(scanned_slots) == total_slots:
@@ -235,18 +263,32 @@ while running:
         top_text = f"Free Slots: {free_slots}/{total_slots}"
     else:
         top_text = f"Scanning lot: {len(scanned_slots)}/{total_slots} slots covered"
-    screen.blit(font.render(top_text, True, WHITE), (20, 20))
+    top_surface = font.render(top_text, True, WHITE)
+    top_y = HUD_TOP
+    screen.blit(top_surface, (HUD_LEFT, top_y))
 
     detect_text = f"Cars detected by camera: {detected_count}/{len(all_cars)}"
-    screen.blit(small_font.render(detect_text, True, YELLOW), (20, 50))
-    screen.blit(small_font.render(status_message, True, WHITE), (20, HEIGHT - 25))
+    detect_surface = small_font.render(detect_text, True, YELLOW)
+    detect_y = top_y + top_surface.get_height() + 2
+    max_detect_y = PARKING_LANE_BOUNDS.top - detect_surface.get_height() - 4
+    detect_y = min(detect_y, max_detect_y)
+    screen.blit(detect_surface, (HUD_LEFT, detect_y))
+    status_surface = small_font.render(status_message, True, WHITE)
+    status_y = HEIGHT - status_surface.get_height() - sy(10)
+    screen.blit(status_surface, (HUD_LEFT, status_y))
 
     if pygame.time.get_ticks() < popup_until:
-        popup_rect = pygame.Rect(260, 80, 380, 55)
+        popup_rect = pygame.Rect(
+            WIDTH // 2 - sx(240),
+            PARKING_LANE_BOUNDS.top + sy(20),
+            sx(480),
+            sy(70),
+        )
         pygame.draw.rect(screen, (170, 20, 20), popup_rect, border_radius=8)
         pygame.draw.rect(screen, WHITE, popup_rect, 2, border_radius=8)
         popup_label = font.render(popup_message, True, WHITE)
-        screen.blit(popup_label, (popup_rect.x + 18, popup_rect.y + 17))
+        popup_label_rect = popup_label.get_rect(center=popup_rect.center)
+        screen.blit(popup_label, popup_label_rect)
 
     pygame.display.update()
 
