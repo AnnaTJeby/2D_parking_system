@@ -95,6 +95,7 @@ obstacle = pygame.Rect(
 
 # ---------- CAMERA ----------
 camera = Camera(slots_center_x, slots_center_y)
+CAMERA_HITBOX_RADIUS = 10
 
 # ---------- CAR STATE ----------
 active_car = None
@@ -312,7 +313,13 @@ while running:
                         continue
 
                     new_car = pygame.Rect(ENTRY_POINT[0], ENTRY_POINT[1], CAR_SIZE[0], CAR_SIZE[1])
-                    entry_blocked = new_car.colliderect(obstacle) or any(
+                    camera_hitbox = pygame.Rect(
+                        camera.x - CAMERA_HITBOX_RADIUS,
+                        camera.y - CAMERA_HITBOX_RADIUS,
+                        CAMERA_HITBOX_RADIUS * 2,
+                        CAMERA_HITBOX_RADIUS * 2,
+                    )
+                    entry_blocked = new_car.colliderect(obstacle) or new_car.colliderect(camera_hitbox) or any(
                         new_car.colliderect(parking_slots[idx]) for idx in occupied_slots
                     )
                     if entry_blocked:
@@ -396,10 +403,16 @@ while running:
         active_car.bottom = min(active_car.bottom, PARKING_LANE_BOUNDS.bottom)
 
         # Prevent crossing obstacle/right wall or occupied parking slots
+        camera_hitbox = pygame.Rect(
+            camera.x - CAMERA_HITBOX_RADIUS,
+            camera.y - CAMERA_HITBOX_RADIUS,
+            CAMERA_HITBOX_RADIUS * 2,
+            CAMERA_HITBOX_RADIUS * 2,
+        )
         blocked_by_taken_slot = any(
             active_car.colliderect(parking_slots[idx]) for idx in occupied_slots
         )
-        if active_car.colliderect(obstacle) or blocked_by_taken_slot:
+        if active_car.colliderect(obstacle) or active_car.colliderect(camera_hitbox) or blocked_by_taken_slot:
             if blocked_by_taken_slot:
                 popup_message = "Warning: Slot already occupied."
                 popup_color = (170, 20, 20)
